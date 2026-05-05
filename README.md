@@ -47,8 +47,8 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/config/statuspage` - Data storage
-- `./rootfs/data/statuspage` - Data storage
+- `./volumes/config/statuspage` - Data storage
+- `./volumes/data/statuspage` - Data storage
 
 ## 🔍 Logging
 
