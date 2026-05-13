@@ -1,5 +1,6 @@
 # nginx proxy address - http://172.17.0.1:3007
 
+name: statuspage
 x-logging: &default-logging
   driver: json-file
   options:
@@ -8,27 +9,60 @@ x-logging: &default-logging
 
 services:
   statuspage:
-    image: statuspage/statuspage:latest
+    image: cachethq/docker:latest
+    pull_policy: always
     container_name: statuspage-app
-    restart: unless-stopped
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
     logging: *default-logging
     networks:
       - statuspage
     ports:
-      - "3007:3007"
+      - "172.17.0.1:3007:8000"
     environment:
       TZ: ${TZ:-America/New_York}
-      PUID: ${SERVICE_USER:-1000}
-      PGID: ${SERVICE_GROUP:-1000}
+      APP_KEY: ${APP_SECRET_KEY:-changeme_secret_key_min_32_chars}
+      APP_URL: http://${BASE_HOST_NAME:-localhost}:3007
+      DB_DRIVER: pgsql
+      DB_HOST: statuspage-db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_CREATE_DATABASE_NAME:-statuspage}
+      DB_USERNAME: ${DB_USER_NAME:-statuspage}
+      DB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: ${APP_DEBUG:-false}
     volumes:
-      - ./volumes/config/statuspage:/config
-      - ./volumes/data/statuspage:/data
+      - ./volumes/data/statuspage:/var/www/html/storage
+    depends_on:
+      - statuspage-db
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3007"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  statuspage-db:
+    image: postgres:latest
+    pull_policy: always
+    container_name: statuspage-db
+    restart: always
+    logging: *default-logging
+    networks:
+      - statuspage
+    environment:
+      TZ: ${TZ:-America/New_York}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-statuspage}
+      POSTGRES_USER: ${DB_USER_NAME:-statuspage}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+    volumes:
+      - ./volumes/data/db/postgres/statuspage:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 30s
       timeout: 10s
       retries: 3
 
 networks:
   statuspage:
+    name: statuspage
     external: false
