@@ -1,93 +1,74 @@
-# nginx proxy address - http://172.17.0.1:3007
+# nginx proxy address - http://172.17.0.1:64355
 
 name: statuspage
 x-logging: &default-logging
-  driver: json-file
   options:
-    max-size: "5m"
-    max-file: "1"
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
 
 services:
-  statuspage:
+  app:
     image: cachethq/docker:latest
-    pull_policy: always
     container_name: statuspage-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
+    pull_policy: always
     logging: *default-logging
-    networks:
-      - statuspage
-      - proxy
-      - cloudflare
-    ports:
-      - "172.17.0.1:3007:8000"
     environment:
       TZ: ${TZ:-America/New_York}
-      APP_KEY: ${APP_SECRET_KEY:-changeme_secret_key_min_32_chars}
-      APP_URL: http://${BASE_HOST_NAME:-localhost}:3007
+      CONTAINER_NAME: statuspage-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      APP_KEY: ${APP_SECRET_KEY:-replace-with-a-random-32-byte-hex-string}
+      APP_URL: http://${BASE_HOST_NAME:-$HOSTNAME}:64355
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: ${APP_DEBUG:-false}
       DB_DRIVER: pgsql
       DB_HOST: statuspage-db
       DB_PORT: 5432
       DB_DATABASE: ${DB_CREATE_DATABASE_NAME:-statuspage}
       DB_USERNAME: ${DB_USER_NAME:-statuspage}
-      DB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
-      APP_ENV: ${APP_ENV:-production}
-      DEBUG: ${APP_DEBUG:-false}
-      CONTAINER_NAME: statuspage-app
-      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      DB_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+    ports:
+      - '172.17.0.1:64355:8000'
     volumes:
-      - ./volumes/data/statuspage:/var/www/html/storage
+      - './volumes/data/statuspage:/var/www/html/storage:z'
     depends_on:
       - statuspage-db
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000']
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - 'traefik.enable=true'
-      - 'cloudflare.enable=true'
-      - 'traefik.docker.network=proxy'
-      - 'cloudflare.service=http://statuspage-app:8000'
-      - 'cloudflare.hostname=statuspage.${CLOUDFLARE_ZONE_NAME:-}'
-      - 'traefik.http.routers.statuspage-app.entrypoints=http'
-      - 'traefik.http.routers.statuspage-app-secure.tls=true'
-      - 'traefik.http.routers.statuspage-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
-      - 'traefik.http.middlewares.statuspage-app-https-redirect.redirectscheme.scheme=https'
-      - 'traefik.http.routers.statuspage-app.middlewares=statuspage-app-https-redirect'
-      - 'traefik.http.routers.statuspage-app-secure.entrypoints=https'
-      - 'traefik.http.routers.statuspage-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
-      - 'traefik.http.routers.statuspage-app-secure.tls.certresolver=cloudflare'
-      - 'traefik.http.routers.statuspage-app-secure.service=statuspage-app'
-      - 'traefik.http.services.statuspage-app.loadbalancer.server.port=8000'
+    networks:
+      - statuspage
 
   statuspage-db:
     image: postgres:latest
-    pull_policy: always
     container_name: statuspage-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: statuspage-db
     restart: always
+    pull_policy: always
     logging: *default-logging
-    networks:
-      - statuspage
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: statuspage-db
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-statuspage}
       POSTGRES_USER: ${DB_USER_NAME:-statuspage}
-      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
-      CONTAINER_NAME: statuspage-db
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
     volumes:
-      - ./volumes/data/db/postgres/statuspage:/var/lib/postgresql/data
+      - './volumes/db/postgres/statuspage:/var/lib/postgresql/data:z'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - statuspage
 
 networks:
   statuspage:
     name: statuspage
     external: false
-  proxy:
-    external: true
-  cloudflare:
-    external: true

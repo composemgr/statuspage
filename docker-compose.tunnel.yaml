@@ -1,0 +1,78 @@
+
+name: statuspage
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  app:
+    image: cachethq/docker:latest
+    container_name: statuspage-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: statuspage-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      APP_KEY: ${APP_SECRET_KEY:-replace-with-a-random-32-byte-hex-string}
+      APP_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: ${APP_DEBUG:-false}
+      DB_DRIVER: pgsql
+      DB_HOST: statuspage-db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_CREATE_DATABASE_NAME:-statuspage}
+      DB_USERNAME: ${DB_USER_NAME:-statuspage}
+      DB_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+    volumes:
+      - './volumes/data/statuspage:/var/www/html/storage:z'
+    depends_on:
+      - statuspage-db
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - 'cloudflare.enable=true'
+      - 'cloudflare.service=http://statuspage-app:8000'
+      - 'cloudflare.hostname=${BASE_HOST_NAME:-$HOSTNAME}'
+    networks:
+      - statuspage
+      - cloudflare
+
+  statuspage-db:
+    image: postgres:latest
+    container_name: statuspage-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: statuspage-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: statuspage-db
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-statuspage}
+      POSTGRES_USER: ${DB_USER_NAME:-statuspage}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+    volumes:
+      - './volumes/db/postgres/statuspage:/var/lib/postgresql/data:z'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - statuspage
+
+networks:
+  statuspage:
+    name: statuspage
+    external: false
+  cloudflare:
+    external: true
